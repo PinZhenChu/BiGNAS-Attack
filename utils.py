@@ -32,6 +32,11 @@ def link_split(data):
 
     target_test_link = data.target_link[:, split_mask["test"]]
     target_test_label = data.target_label[split_mask["test"]]
+    target_test_edge_index = torch.cat(
+        [target_test_link, target_test_link[[1, 0]]], dim=1
+    )
+    # print(f"target_test_link shape: {target_test_link.shape}")
+    # print("Test users:", torch.unique(target_test_link[0]))
 
     return (
         source_edge_index,
@@ -44,6 +49,7 @@ def link_split(data):
         target_valid_label,
         target_test_link,
         target_test_label,
+        target_test_edge_index, # ✅ 加上這行
     )
 
 

@@ -92,6 +92,8 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--eta-min", type=float, default=0.001)
     parser.add_argument("--T-max", type=int, default=10)
+    parser.add_argument("--top_k", type=int, default=15, help="Top-K for hit ratio evaluation") #新增top k
+
 
     # meta settings
     parser.add_argument("--meta-interval", type=int, default=50)

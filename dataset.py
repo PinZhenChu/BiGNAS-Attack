@@ -186,6 +186,17 @@ class CrossDomain(Dataset):
             record_tot[tot] += 1
         logging.info(record_tot)
 
+        # 轉成 PyG 所需的 edge_index 格式
+        target_edge_index = torch.tensor(
+            target_df[["user", "item"]].values, dtype=torch.long
+        ).t()
+
+        # 製作 train/valid/test 的 edge index
+        target_train_edge_index = target_edge_index[:, train_mask]
+        target_valid_edge_index = target_edge_index[:, val_mask]
+        target_test_edge_index  = target_edge_index[:, test_mask]
+
+        # 建立 PyG 的 Data 物件
         data = Data(
             source_label=source_label,
             source_link=source_link,
@@ -195,7 +206,19 @@ class CrossDomain(Dataset):
             num_users=len(user_index),
             num_source_items=len(source_item_index),
             num_target_items=len(target_item_index),
+
+            # ✅ 補上 overlap user list
+            raw_overlap_users=torch.tensor(
+                [user_index[u] for u in common_users],
+                dtype=torch.long
+            ),
+
+            # ✅ 補上 target domain 的分割後 edge_index
+            target_train_edge_index=target_train_edge_index,
+            target_valid_edge_index=target_valid_edge_index,
+            target_test_edge_index=target_test_edge_index,
         )
+
 
         data_list = [data]
 
