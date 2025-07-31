@@ -219,7 +219,8 @@ def evaluate_er_hit_ratio(
     return er_ratio
 
 
-def train(model, perceptor, data, args, source_edge_index=None):
+def train(model, perceptor, data, args, source_edge_index=None, target_edge_index=None):
+
     device = args.device
     data = data.to(device)
     model = model.to(device)
@@ -243,6 +244,11 @@ def train(model, perceptor, data, args, source_edge_index=None):
         source_edge_index = source_edge_index.to(device)
     else:
         source_edge_index = orig_source_edge_index.to(device)
+
+    if target_edge_index is not None:
+        target_train_edge_index = target_edge_index.to(device)
+    else:
+        target_train_edge_index = target_train_edge_index.to(device)
 
     source_set_size = source_link.shape[1]
     train_set_size = target_train_link.shape[1]
@@ -479,14 +485,14 @@ def train(model, perceptor, data, args, source_edge_index=None):
         device=device,
     )
 
-    cold_item_id = 2286  # 你可以改成要評估的冷門商品id
+    cold_item_id = args.cold_item_ids # 你可以改成要評估的冷門商品id
     if cold_item_id is not None:
         evaluate_er_hit_ratio(
             model=model,
             data=data,
             source_edge_index=source_edge_index,
             target_edge_index=target_train_edge_index,
-            cold_item_set={cold_item_id},
+            cold_item_set = set([cold_item_id]),
             top_k=args.top_k,
             num_candidates=99,
             device=device,
@@ -506,7 +512,7 @@ def train(model, perceptor, data, args, source_edge_index=None):
         data=data,
         source_edge_index=source_edge_index,
         target_edge_index=target_train_edge_index,
-        cold_item_set={2286},   # 注意這邊是 set，不是 cold_item_id=
+        cold_item_set = set([cold_item_id]),   # 注意這邊是 set，不是 cold_item_id=
         device=device
     )
 
@@ -695,7 +701,7 @@ def train(model, perceptor, data, args, source_edge_index=None):
 #     candidate_info.sort(key=lambda x: x[2], reverse=True)
 
 #     # selected, seed_user, source_count = candidate_info[100]
-#     selected = 2286
+    # selected = args.cold_item_ids
 #     # 統計出現次數
 #     train_count = (train_edges[1] == selected).sum()
 #     test_count = (test_item == selected).sum()
@@ -1073,7 +1079,7 @@ def train(model, perceptor, data, args, source_edge_index=None):
 #         num_candidates=99,
 #         device=device,
 #     )
-#     cold_item_id = 2286
+#     cold_item_id = args.cold_item_ids
    
 #     id = find_cold_item_strict(data, data.target_train_edge_index, data.target_test_edge_index)
 #     print("id======", id)
@@ -1102,10 +1108,10 @@ def train(model, perceptor, data, args, source_edge_index=None):
 #     logging.info(f"Test AUC: {test_auc:.4f}")
 #     wandb.log({"Test AUC": test_auc})
 #     evaluate_multiple_topk(
-#     model=model,
-#     data=data,
-#     source_edge_index=source_edge_index,
-#     target_edge_index=target_train_edge_index,
-#     cold_item_set={2286},   # 注意這邊是 set，不是 cold_item_id=
-#     device=device
+    #     model=model,
+    #     data=data,
+    #     source_edge_index=source_edge_index,
+    #     target_edge_index=target_train_edge_index,
+    #     cold_item_set={args.cold_item_id},   # 注意這邊是 set，不是 cold_item_id=
+    #     device=device
 #     )
