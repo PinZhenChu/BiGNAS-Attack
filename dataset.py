@@ -135,6 +135,12 @@ class CrossDomain(Dataset):
             source_item_index[item] = idx
         source_df["item"] = source_df["item"].apply(lambda x: source_item_index[x])
         source_df["item"] += len(user_index)
+        # === 儲存 source item 映射表為 CSV ===
+        source_item_map_df = pd.DataFrame({
+            'asin': list(source_item_index.keys()),
+            'global_index': [v + len(user_index) for v in source_item_index.values()]  # 與 Data 中一致
+        })
+        source_item_map_df.to_csv(os.path.join(self.processed_dir, 'source_item_global_index_map.csv'), index=False)
 
         source_label = torch.tensor(source_df["click"].values, dtype=torch.float)
         source_link = torch.tensor(
@@ -148,11 +154,24 @@ class CrossDomain(Dataset):
             target_item_index[item] = idx
         target_df["item"] = target_df["item"].apply(lambda x: target_item_index[x])
         target_df["item"] += len(user_index)
+        # === 儲存 target item 映射表為 CSV ===
+        target_item_map_df = pd.DataFrame({
+            'asin': list(target_item_index.keys()),
+            'global_index': [v + len(user_index) for v in target_item_index.values()]
+        })
+        target_item_map_df.to_csv(os.path.join(self.processed_dir, 'target_item_global_index_map.csv'), index=False)
 
         target_label = torch.tensor(target_df["click"].values, dtype=torch.float)
         target_link = torch.tensor(
             target_df[["user", "item"]].values, dtype=torch.long
         ).t()
+
+        # === 儲存轉換表為 CSV（插入點） ===
+        user_map_df = pd.DataFrame({
+            'reviewerID': list(user_index.keys()),
+            'user_index': list(user_index.values())
+        })
+        user_map_df.to_csv(os.path.join(self.processed_dir, 'user_global_index_map.csv'), index=False)
 
         # print statistics
         logging.info(
@@ -217,6 +236,7 @@ class CrossDomain(Dataset):
             target_train_edge_index=target_train_edge_index,
             target_valid_edge_index=target_valid_edge_index,
             target_test_edge_index=target_test_edge_index,
+            target_id2asin={v + len(user_index): k for k, v in target_item_index.items()}
         )
 
 
