@@ -5,7 +5,7 @@ import torch.nn as nn
 import wandb
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
-
+import numpy as np  
 from auxilearn.optim import MetaOptimizer
 from dataset import Dataset
 from pytorchtools import EarlyStopping
@@ -573,3 +573,8 @@ def train(model, perceptor, data, args):
         cold_item_set={cold_item_id},   # 注意這邊是 set，不是 cold_item_id=
         device=device
     )
+        # === 存下 source_item_embedding ===
+    source_emb = model.source_item_embedding.weight.detach().cpu().numpy()
+    np.save("source_item_embedding.npy", source_emb)
+    np.savetxt("source_item_embedding.csv", source_emb, delimiter=",")
+    logging.info(f"✅ Saved source_item_embedding: shape={source_emb.shape}")

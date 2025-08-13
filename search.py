@@ -105,5 +105,18 @@ if __name__ == "__main__":
     parser.add_argument("--descent-step", type=int, default=10)
     parser.add_argument("--meta-op", type=str, default="gat")
 
+    # CL 超參數
+    parser.add_argument('--ssl_aug_type', type=str, default='edge', choices=['edge', 'node'])
+    parser.add_argument('--edge_drop_rate', type=float, default=0.2)
+    parser.add_argument('--node_drop_rate', type=float, default=0.2)
+    parser.add_argument('--ssl_reg', type=float, default=0.1)   # InfoNCE 權重
+    parser.add_argument('--reg', type=float, default=1e-4)      # L2 權重
+    parser.add_argument('--nce_temp', type=float, default=0.2)  # InfoNCE 溫度
+    parser.add_argument('--hard_ratio', type=float, default=0.1) # 取前10% hard users
+    parser.add_argument('--hard_mine_interval', type=int, default=1) # 每幾個 epoch 重算一次
+    parser.add_argument('--inject_source', action='store_true')  # 是否在 source 注入
+    parser.add_argument('--inject_target', action='store_true')  # 是否在 target 注入
+    parser.add_argument('--neg_samples', type=int, default=1)    # BPR 每個正例的負樣本數
+
     args = parser.parse_args()
     search(args)

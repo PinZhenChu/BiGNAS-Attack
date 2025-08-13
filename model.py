@@ -151,7 +151,7 @@ class Model(nn.Module):
         self.source_supernet.print_alpha()
         logging.info("target supernet alpha:")
         self.target_supernet.print_alpha()
-
+    
 
 class Perceptor(nn.Module):
     def __init__(self, args) -> None:
