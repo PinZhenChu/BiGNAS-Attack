@@ -151,7 +151,63 @@ class Model(nn.Module):
         self.source_supernet.print_alpha()
         logging.info("target supernet alpha:")
         self.target_supernet.print_alpha()
-    
+        
+    # === CL / Encoder utilities ===
+    def encode_full(self, source_edge_index, target_edge_index, return_norm: bool = True):
+        """
+        與 forward 相同的傳遞 + user-mix 流程，回傳:
+          user_emb [U, emb_cat], source_item_emb [S, emb_cat], target_item_emb [T, emb_cat]
+        emb_cat = embedding_dim + num_layers * hidden_dim
+        """
+        # 1) initial
+        source_x = torch.cat([self.user_embedding.weight,
+                              self.source_item_embedding.weight], dim=0)   # [U+S, d0]
+        target_x = torch.cat([self.user_embedding.weight,
+                              self.target_item_embedding.weight], dim=0)   # [U+T, d0]
+
+        source_embs = [source_x]
+        target_embs = [target_x]
+
+        # 2) per-layer propagation + user mix (與 forward 一致)
+        for i in range(self.num_layers):
+            source_x = self.source_supernet.convs[i](source_x, source_edge_index)
+            target_x = self.target_supernet.convs[i](target_x, target_edge_index)
+
+            user_emb_layer = self.user_mix_linear[i](
+                torch.cat([source_x[: self.num_users], target_x[: self.num_users]], dim=1)
+            )
+            source_x = torch.cat([user_emb_layer, source_x[self.num_users:]], dim=0)
+            target_x = torch.cat([user_emb_layer, target_x[self.num_users:]], dim=0)
+
+            source_embs.append(source_x)
+            target_embs.append(target_x)
+
+        # 3) concat 初始+各層
+        source_cat = torch.cat(source_embs, dim=1)  # [U+S, emb_cat]
+        target_cat = torch.cat(target_embs, dim=1)  # [U+T, emb_cat]
+
+        # 4) 切回 user/item
+        user_emb        = source_cat[: self.num_users]
+        source_item_emb = source_cat[self.num_users:]
+        target_item_emb = target_cat[self.num_users:]
+
+        if return_norm:
+            user_emb        = F.normalize(user_emb, dim=1)
+            source_item_emb = F.normalize(source_item_emb, dim=1)
+            target_item_emb = F.normalize(target_item_emb, dim=1)
+
+        return user_emb, source_item_emb, target_item_emb
+
+    def encode_target_views(self, source_edge_index, target_edge_index_view1, target_edge_index_view2,
+                            return_norm: bool = True):
+        """
+        取兩張 target 子圖視角的嵌入（source 圖相同）
+        回傳: (user_v1, item_v1), (user_v2, item_v2)
+        """
+        user_v1, _, item_v1 = self.encode_full(source_edge_index, target_edge_index_view1, return_norm)
+        user_v2, _, item_v2 = self.encode_full(source_edge_index, target_edge_index_view2, return_norm)
+        return (user_v1, item_v1), (user_v2, item_v2)
+
 
 class Perceptor(nn.Module):
     def __init__(self, args) -> None:
