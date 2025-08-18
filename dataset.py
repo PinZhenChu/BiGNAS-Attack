@@ -97,6 +97,7 @@ class CrossDomain(Dataset):
 
         logging.info(f"cates: {self.categories}")
 
+        # 只保留「同時在兩 domain 都出現」的 user
         user_sets = [set(df["user"].unique()) for df in df_list]
         common_users = set.intersection(*user_sets)
         logging.info(f"Common users: {len(common_users)}")
@@ -123,11 +124,13 @@ class CrossDomain(Dataset):
         df.drop(remove_index, axis=0, inplace=True)
         df.reset_index(drop=True, inplace=True)
 
+        # 把 User 轉成連續整數 id（全域、跨 domain 共用）
         user_index = {}
         for idx, user in enumerate(df["user"].unique()):
             user_index[user] = idx
         df["user"] = df["user"].apply(lambda x: user_index[x])
 
+        # 把 Item (ASIN) 轉成整數 id（先各 domain 各自 local 編碼）
         source_df = df[df["is_target"] == 0].copy()
         source_df.reset_index(drop=True, inplace=True)
         source_item_index = {}

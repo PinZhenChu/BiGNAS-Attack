@@ -1,1 +1,32 @@
-python search.py --T-max=10 --conv-lr=0.01 --descent-step=30 --dropout=0.8 --hpo-lr=0.001 --lr=0.001 --meta-hidden-dim=16 --meta-interval=20 --meta-op=sage --num-layers=2 --weight-decay=0.001 --top_k=60 --device cuda:0 --categories CD Kitchen --target Kitchen --use-source --use-meta
+python search.py \
+  --T-max=10 \
+  --conv-lr=0.01 \
+  --descent-step=30 \
+  --dropout=0.8 \
+  --hpo-lr=0.001 \
+  --lr=0.001 \
+  --meta-hidden-dim=16 \
+  --meta-interval=20 \
+  --meta-op=sage \
+  --num-layers=2 \
+  --weight-decay=0.001 \
+  --top_k=60 \
+  --device cuda:0 \
+  --categories CD Kitchen \
+  --target Kitchen \
+  --use-source \
+  --use-meta \
+  --ssl_aug_type=edge \
+  --edge_drop_rate=0.2 \
+  --node_drop_rate=0.2 \
+  --ssl_reg=0.1 \
+  --reg=1e-4 \
+  --nce_temp=0.2 \
+  --hard_ratio=0.1 \
+  --hard_mine_interval=1 \
+  --inject_source \
+  --inject_target \
+  --neg_samples=1 \
+  --lambda_user=0.1 \
+  --lambda_src=0.05 \
+  --lambda_tgt=0.1

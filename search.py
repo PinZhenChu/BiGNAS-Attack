@@ -58,9 +58,9 @@ if __name__ == "__main__":
 
     # dataset settings
     parser.add_argument(
-        "--categories", type=str, nargs="+", default=["Electronic", "Clothing"]
+        "--categories", type=str, nargs="+", default=["CD", "Kitchen"]
     )
-    parser.add_argument("--target", type=str, default="Clothing")
+    parser.add_argument("--target", type=str, default="Kitchen")
     parser.add_argument("--root", type=str, default="data/")
 
     # model settings
@@ -117,6 +117,12 @@ if __name__ == "__main__":
     parser.add_argument('--inject_source', action='store_true')  # 是否在 source 注入
     parser.add_argument('--inject_target', action='store_true')  # 是否在 target 注入
     parser.add_argument('--neg_samples', type=int, default=1)    # BPR 每個正例的負樣本數
+    parser.add_argument('--lambda_user', type=float, default=0.1,
+                    help='Weight for user-level SSL loss')
+    parser.add_argument('--lambda_src', type=float, default=0.05,
+                    help='Weight for source-item SSL loss')
+    parser.add_argument('--lambda_tgt', type=float, default=0.1,
+                    help='Weight for target-item SSL loss')
 
     args = parser.parse_args()
     search(args)
