@@ -144,9 +144,10 @@ def inject_fake_edges(
     device=None,
     log_detail=True,
     args=None,
-    inject_source=True,  # ✅ 是否注入 source 假邊
-    inject_target=True,  # ✅ 是否注入 target 假邊
+    inject_source=True,   # ✅ 是否注入 source 假邊
+    inject_target=True,   # ✅ 是否注入 target 假邊
     source_edge_fraction=None, 
+    seed_users=None       # ✅ 可以傳單一 ID 或 list
 ):
     import torch
     import random
@@ -154,7 +155,6 @@ def inject_fake_edges(
 
     logger = logging.getLogger(__name__)
     device = device or source_edge_index.device
-    num_users = data.num_users
 
     source_edge_index = source_edge_index.to(device)
     target_edge_index = target_edge_index.to(device)
@@ -177,43 +177,41 @@ def inject_fake_edges(
     selected_users = [overlap_users[i] for i in top_indices.tolist()]
     logger.info(f"[inject_fake_edges] Selected {len(selected_users)} users with top predicted score for cold item")
 
-    # 🔍 印出前13位的使用者與預測分數
-    print(f"🔍 Top {len(selected_users)} selected user IDs and scores (最多前28個):")
-    for rank in range(min(28, len(selected_users))):
+    # 🔍 Debug：印出前幾位使用者與分數
+    for rank in range(min(20, len(selected_users))):
         uid = selected_users[rank]
         score = top_scores[rank].item()
-        print(f"  #{rank+1}: user_id = {uid}, score = {score:.6f}")
+        print(f"  #{rank+1}: user_id={uid}, score={score:.6f}")
 
+    # === Step 2: 決定 seed user（與 cold item 有交互的 user） ===
+    if seed_users is None:
+        tgt_u, tgt_i = data.target_train_edge_index
+        seed_users = [u.item() for u, i in zip(tgt_u, tgt_i) if i.item() == cold_item_id]
+        seed_users = list(set(seed_users))
 
+    if isinstance(seed_users, int):
+        seed_users = [seed_users]   # ✅ 保證是 list
 
-    # === Step 2: 找出 seed user（與 cold item 有交互的 user） ===
-    tgt_u, tgt_i = data.target_train_edge_index
-
-
-    # seed_users = [u.item() for u, i in zip(tgt_u, tgt_i) if i.item() == cold_item_id]
-    # seed_users = list(set(seed_users))
-    seed_users =2543
     if not seed_users:
         logger.warning(f"[inject_fake_edges] No seed users found for cold item {cold_item_id}")
         return source_edge_index, target_edge_index, [cold_item_id], selected_users
-    seed_user = 2543  # 假設只有一個 seed user
-    logger.info(f"[inject_fake_edges] Seed user for cold item: {seed_user}")
+
+    logger.info(f"[inject_fake_edges] Seed users for cold item: {seed_users}")
 
     # === Step 3: 取得 seed user 在 source domain 的所有行為 ===
     su, si = source_edge_index[0].tolist(), source_edge_index[1].tolist()
-    seed_source_items = [i for u, i in zip(su, si) if u == seed_user]
+    seed_source_items = [i for u, i in zip(su, si) if u in seed_users]
     seed_source_items = list(set(seed_source_items))
-    logger.info(f"[inject_fake_edges] Seed user has {len(seed_source_items)} source domain items")
 
-    # === Step 4: 建立 fake edge 給 target domain 攻擊用戶 ===
+    logger.info(f"[inject_fake_edges] Seed users have {len(seed_source_items)} unique source domain items")
+
+    # === Step 4: 建立 fake edge ===
     fake_source_edges = [(u, i) for u in selected_users for i in seed_source_items]
     fake_target_edges = [(u, cold_item_id) for u in selected_users]
 
-    # === Step 5: 合併 source 假邊（視條件注入） ===
-    # === Step 5: 合併 source 假邊（視條件注入） ===
+    # === Step 5: 合併 source 假邊 ===
     if inject_source and fake_source_edges:
-        # ✅ 隨機抽取指定比例的假邊
-        if source_edge_fraction < 1.0:
+        if source_edge_fraction and source_edge_fraction < 1.0:
             sample_size = int(len(fake_source_edges) * source_edge_fraction)
             fake_source_edges = random.sample(fake_source_edges, sample_size)
             logger.info(f"[inject_fake_edges] 僅使用 {sample_size} 條 source 假邊 (比例={source_edge_fraction})")
@@ -224,12 +222,12 @@ def inject_fake_edges(
         new_source_edge_index = torch.cat(
             [source_edge_index, torch.stack([su_tensor, si_tensor], dim=0)], dim=1
         )
-        logger.info(f"[inject_fake_edges] 注入 {len(fake_source_edges)} 條 source 假邊 (copy seed user 行為)")
+        logger.info(f"[inject_fake_edges] 注入 {len(fake_source_edges)} 條 source 假邊")
     else:
         new_source_edge_index = source_edge_index
         logger.info(f"[inject_fake_edges] 未注入 source 假邊")
 
-    # === Step 6: 合併 target 假邊（視條件注入） ===
+    # === Step 6: 合併 target 假邊 ===
     if inject_target and fake_target_edges:
         tu, ti = zip(*fake_target_edges)
         tu_tensor = torch.tensor(tu, dtype=torch.long, device=device)
@@ -246,6 +244,7 @@ def inject_fake_edges(
     logger.info(f"[inject_fake_edges] 新 target_edge_index 邊數: {new_target_edge_index.shape[1]}")
 
     return new_source_edge_index, new_target_edge_index, [cold_item_id], selected_users
+
 
 def search(args):
     args.search = True
@@ -314,7 +313,7 @@ def search(args):
         args=args,
         inject_source=True,
         inject_target=True,
-        source_edge_fraction=0.1
+        source_edge_fraction=0.8
     )
 
     # 使用篡改後的 source_edge_index 進行訓練
@@ -410,7 +409,7 @@ if __name__ == "__main__":
     parser.add_argument("--eta-min", type=float, default=0.001)
     parser.add_argument("--T-max", type=int, default=10)
     parser.add_argument("--top_k", type=int, default=15, help="Top-K for hit ratio evaluation")
-    parser.add_argument("--cold_item_ids", type=int, default=None, help="冷門商品的 target item ID")
+    parser.add_argument("--cold_item_ids", type=int, default=3081, help="冷門商品的 target item ID")
 
     # meta settings
     parser.add_argument("--meta-interval", type=int, default=50)
