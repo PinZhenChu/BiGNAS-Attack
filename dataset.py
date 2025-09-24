@@ -251,11 +251,13 @@ class CrossDomain(Dataset):
         torch.save(data_list, self.processed_paths[0])
 
     def len(self):
-        data_list = torch.load(self.processed_paths[0])
+        data_list = torch.load(self.processed_paths[0], weights_only=False)
+
         return len(data_list)
 
     def get(self, idx):
-        data_list = torch.load(self.processed_paths[0])
+        data_list = torch.load(self.processed_paths[0], weights_only=False)
+
         data = data_list[idx]
         return data
 

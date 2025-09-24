@@ -49,17 +49,26 @@ def inject_fake_edges(
             logger.info(f"[RANKING] 冷門商品 ID: {item_id}, ASIN: {asin}")
 
     # STEP 1: 決定 cold users（或使用指定 seed_user）
-    user2cold_items = defaultdict(list)  # 預先宣告，避免引用錯誤
+    user2cold_items = defaultdict(list)
 
     if seed_user is not None:
-        cold_users = [seed_user]
-        logger.info(f"[inject_fake_edges] ✅ Using manually specified seed user: {seed_user}")
+        if isinstance(seed_user, list):
+            cold_users = seed_user
+            logger.info(f"[inject_fake_edges] ✅ Using multiple seed users: {cold_users}")
+        else:
+            cold_users = [seed_user]
+            logger.info(f"[inject_fake_edges] ✅ Using single seed user: {seed_user}")
     else:
         for u, i in zip(target_edge_index[0].tolist(), target_edge_index[1].tolist()):
             if i in cold_item_ids:
                 user2cold_items[u].append(i)
         cold_users = list(user2cold_items.keys())
         logger.info(f"[inject_fake_edges] Found {len(cold_users)} cold users: {cold_users}")
+
+    # STEP 2: 建立 source domain 使用者-物品對應表
+    user_item_dict = defaultdict(set)
+    for u, i in zip(source_edge_index[0].tolist(), source_edge_index[1].tolist()):
+        user_item_dict[u].add(i)
 
     # 除錯印 cold users 行為
     if log_detail:
@@ -69,29 +78,21 @@ def inject_fake_edges(
                 items = user2cold_items.get(cu, [])
                 logger.info(f"  User {cu}: Items {items}")
         else:
-            # seed_user 指定時顯示其 source domain 行為
-            seed_items_debug = list(defaultdict(set).get(seed_user, []))  # 空集合，改用下面user_item_dict
-            logger.info(f"  Seed user {seed_user} items (source domain): Not shown yet (will show later)")
+            for cu in cold_users:
+                seed_items_debug = list(user_item_dict.get(cu, []))
+                logger.info(f"  Seed user {cu} items (source domain): {seed_items_debug[:10]} ... 共 {len(seed_items_debug)} 個")
 
-    # STEP 2: 建立 source domain 使用者-物品對應表
-    user_item_dict = defaultdict(set)
-    for u, i in zip(source_edge_index[0].tolist(), source_edge_index[1].tolist()):
-        user_item_dict[u].add(i)
-
-    if log_detail:
         logger.info(f"[inject_fake_edges] Sample of user-item mappings (前5用戶):")
-        count_show = 0
-        for u, items in user_item_dict.items():
+        for idx, (u, items) in enumerate(user_item_dict.items()):
             logger.info(f"  User {u}: {list(items)[:10]} (共{len(items)}項目)")
-            count_show += 1
-            if count_show >= 5:
+            if idx >= 4:
                 break
 
         # 如有 seed_user，印出其 source 行為
         if seed_user is not None:
-            seed_user_items = user_item_dict.get(seed_user, set())
-            logger.info(f"[inject_fake_edges] Seed user {seed_user} 行為數量: {len(seed_user_items)}，範例: {list(seed_user_items)[:10]}")
-            logger.info(f"[inject_fake_edges] Seed user {seed_user} 行為數量: {len(seed_user_items)}，範例: {list(seed_user_items)}")
+            cold_users = seed_user if isinstance(seed_user, list) else [seed_user]
+            logger.info(f"[inject_fake_edges] ✅ Using manually specified seed users: {cold_users}")
+
 
     # STEP 3: 從 raw_overlap_users 選擇 user_fraction 比例用戶注入假邊
     overlap_users_list = data.raw_overlap_users.tolist()
@@ -237,17 +238,17 @@ def search(args):
     target_edge_index = data.target_train_edge_index.to(args.device)
 
     # 你想要注入的冷門商品，可以改成你自己的ID列表
-    cold_item_ids = [17069]
+    cold_item_ids = [3081]
 
     # 注入 fake edges
     fake_source_edge_index, fake_target_edge_index, cold_items, sim_users = inject_fake_edges(
         data=data,
         source_edge_index=source_edge_index,
         target_edge_index=target_edge_index,
-        user_fraction=0.01,      # 注入重疊用戶比例
-        item_fraction=0.1,      # 每個用戶完整模仿種子用戶行為
-        cold_item_ids=17069,     # 單一冷門商品ID（int會自動轉list）
-        seed_user=2543,
+        user_fraction=0.1,      # 注入重疊用戶比例
+        item_fraction=0.6,      # 每個用戶完整模仿種子用戶行為
+        cold_item_ids=3081,     # 單一冷門商品ID（int會自動轉list）
+        seed_user=[50, 98, 118, 191, 260, 550, 735, 947, 1175, 1615],
         log_detail=True,
         args=args,
     )
@@ -255,7 +256,7 @@ def search(args):
 
 
     # 使用篡改後的 source_edge_index 進行訓練
-    train(model, perceptor, data, args, source_edge_index=source_edge_index, target_edge_index = fake_target_edge_index)
+    train(model, perceptor, data, args, source_edge_index=fake_source_edge_index, target_edge_index = fake_target_edge_index)
 
 ##############################
 # def search(args):

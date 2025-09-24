@@ -218,6 +218,10 @@ def evaluate_er_hit_ratio(
 
     logging.info(f"[ER@{top_k}] Users={total_users}, Cold Item Hits={cold_item_hit_count}, ER Ratio={er_ratio:.4f}")
     return er_ratio
+def count_item_occurrences(edge_index, item_id):
+    # edge_index: shape [2, N], 第一維是 user, 第二維是 item
+    return (edge_index[1] == item_id).sum().item()
+
 
 
 def train(model, perceptor, data, args, source_edge_index=None, target_edge_index=None):
@@ -485,9 +489,15 @@ def train(model, perceptor, data, args, source_edge_index=None, target_edge_inde
         num_candidates=99,
         device=device,
     )
-    cold_item_id = 2256
-    id = find_cold_item_strict(data, data.target_train_edge_index, data.target_test_edge_index)
-    print("id======", id)
+    cold_item_id = 3081
+
+    train_count = count_item_occurrences(target_train_link, cold_item_id)
+    valid_count = count_item_occurrences(target_valid_link, cold_item_id)
+    test_count = count_item_occurrences(target_test_link, cold_item_id)
+
+    print(f"Cold item {cold_item_id} 出現在 train: {train_count} 次, valid: {valid_count} 次, test: {test_count} 次")
+    # id = find_cold_item_strict(data, data.target_train_edge_index, data.target_test_edge_index)
+    # print("id======", cold_item_id)
     # cold_item_id = args.cold_item_ids # 你可以改成要評估的冷門商品id
     if cold_item_id is not None:
         evaluate_er_hit_ratio(
@@ -495,7 +505,7 @@ def train(model, perceptor, data, args, source_edge_index=None, target_edge_inde
             data=data,
             source_edge_index=source_edge_index,
             target_edge_index=target_train_edge_index,
-            cold_item_set={17069},
+            cold_item_set={3081},
             top_k=args.top_k,
             num_candidates=99,
             device=device,
@@ -662,70 +672,70 @@ def train(model, perceptor, data, args, source_edge_index=None, target_edge_inde
 #     logging.info(f"[HIT_RATIO@{top_k}] Users={total_users}, Hits={hit_count}, Hit Ratio={hit_ratio:.4f}")
 #     return hit_ratio
 
-# 🔍 統計每個 cold item 在 test set 中出現的次數（有幾個 user 買過）
-def count_cold_item_occurrences(data, cold_item_set):
-    item_count = {item: 0 for item in cold_item_set}
-    test_link = data.target_test_link.cpu().numpy()
-    for u, i in zip(*test_link):
-        if i in cold_item_set:
-            item_count[i] += 1
-    return item_count
+# # 🔍 統計每個 cold item 在 test set 中出現的次數（有幾個 user 買過）
+# def count_cold_item_occurrences(data, cold_item_set):
+#     item_count = {item: 0 for item in cold_item_set}
+#     test_link = data.target_test_link.cpu().numpy()
+#     for u, i in zip(*test_link):
+#         if i in cold_item_set:
+#             item_count[i] += 1
+#     return item_count
 
-def find_cold_item_strict(data, target_train_edge_index, target_test_edge_index):
-    import numpy as np
-    from collections import defaultdict
+# def find_cold_item_strict(data, target_train_edge_index, target_test_edge_index):
+#     import numpy as np
+#     from collections import defaultdict
 
-    train_edges = target_train_edge_index.cpu().numpy()
-    test_edges = target_test_edge_index.cpu().numpy()
-    overlap_users = set(data.raw_overlap_users.cpu().numpy())  # ⬅️ overlap user list
+#     train_edges = target_train_edge_index.cpu().numpy()
+#     test_edges = target_test_edge_index.cpu().numpy()
+#     overlap_users = set(data.raw_overlap_users.cpu().numpy())  # ⬅️ overlap user list
 
-    train_items = set(train_edges[1])
-    test_user, test_item = test_edges
+#     train_items = set(train_edges[1])
+#     test_user, test_item = test_edges
 
-    # ✅ 建立 test set 中 item → user 的 mapping
-    item_user_map = defaultdict(set)
-    for u, i in zip(test_user, test_item):
-        if u in overlap_users:
-            item_user_map[i].add(u)
+#     # ✅ 建立 test set 中 item → user 的 mapping
+#     item_user_map = defaultdict(set)
+#     for u, i in zip(test_user, test_item):
+#         if u in overlap_users:
+#             item_user_map[i].add(u)
 
-    candidate_info = []  # 存放 (item_id, user_id, user_source_count)
+#     candidate_info = []  # 存放 (item_id, user_id, user_source_count)
 
-    for item, users in item_user_map.items():
-        if item not in train_items and len(users) == 1:
-            user = list(users)[0]
+#     for item, users in item_user_map.items():
+#         if item not in train_items and len(users) == 1:
+#             user = list(users)[0]
 
-            # ✅ 計算這位 user 在 source domain 買過幾個 item
-            source_edges = data.source_link.cpu()
-            source_items = source_edges[1, source_edges[0] == user]
-            num_bought = len(source_items)
+#             # ✅ 計算這位 user 在 source domain 買過幾個 item
+#             source_edges = data.source_link.cpu()
+#             source_items = source_edges[1, source_edges[0] == user]
+#             num_bought = len(source_items)
 
-            candidate_info.append((item, user, num_bought))
+#             candidate_info.append((item, user, num_bought))
 
-    if not candidate_info:
-        print("❌ 找不到符合條件的 cold item")
-        return None
+#     if not candidate_info:
+#         print("❌ 找不到符合條件的 cold item")
+#         return None
 
-    # ✅ 依照 source domain 買的數量做排序（由大到小）
-    candidate_info.sort(key=lambda x: x[2], reverse=True)
+#     # ✅ 依照 source domain 買的數量做排序（由大到小）
+#     candidate_info.sort(key=lambda x: x[2], reverse=True)
 
-    selected, seed_user, source_count = candidate_info[100]
-    # selected = args.cold_item_ids
-    # 統計出現次數
-    train_count = (train_edges[1] == selected).sum()
-    test_count = (test_item == selected).sum()
+#     selected, seed_user, source_count = candidate_info[100]
+#     # selected = args.cold_item_ids
+#     # 統計出現次數
+#     train_count = (train_edges[1] == selected).sum()
+#     test_count = (test_item == selected).sum()
 
-    print("🧊 Found cold item:", selected)
-    print("🔗 ASIN:", data.target_id2asin.get(selected, "N/A"))
-    print(f"📊 Appears in train set: {train_count} times")
-    print(f"📊 Appears in test set : {test_count} times")
-    print(f"👤 Seed user ID: {seed_user}")
-    print(f"🛍️  Bought {source_count} items in source domain")
+#     print("🧊 Found cold item:", selected)
+#     print("🔗 ASIN:", data.target_id2asin.get(selected, "N/A"))
+#     print(f"📊 Appears in train set: {train_count} times")
+#     print(f"📊 Appears in test set : {test_count} times")
+#     print(f"👤 Seed user ID: {seed_user}")
+#     print(f"🛍️  Bought {source_count} items in source domain")
 
-    return selected
+#     return selected
 
 
 
-# def evaluate_er_hit_ratio(
+# # def evaluate_er_hit_ratio(
 #     model, data, source_edge_index, target_edge_index,
 #     cold_item_set,
 #     top_k, num_candidates=99,
